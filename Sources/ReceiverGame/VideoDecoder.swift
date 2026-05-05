@@ -89,7 +89,7 @@ class VideoDecoder {
             throw DecoderError.receiveFrameFailed
         }
         
-        // We have a decoded frame!
+        // We have a decoded frame
         let frameWidth = frame.pointee.width
         let frameHeight = frame.pointee.height
         

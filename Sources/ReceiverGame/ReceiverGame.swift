@@ -10,8 +10,8 @@ final class ReceiverGame: Game {
     static var windowProperties: [WindowProperty] {
         [
             .windowTitle("Receiver Game Stream"),
-            .width(2400),
-            .height(1200),
+            .width(1200),
+            .height(600),
             .resizable(true)
         ]
     }
@@ -57,7 +57,7 @@ final class ReceiverGame: Game {
                     self.frameLock.unlock()
                 }
             } catch {
-                // print("Decode error: \(error)")
+                 print("Decode error: \(error)")
             }
         }
         
@@ -92,7 +92,7 @@ final class ReceiverGame: Game {
                         needsNewTexture = false
                     }
                 } catch {
-                    // fallthrough to recreate
+                    print("fallthrough to recreate")
                 }
             }
             
@@ -123,7 +123,8 @@ final class ReceiverGame: Game {
                 }
                 try renderer
                     .clear(color: .black)
-                    .draw(texture: texture)
+                SDL_RenderTexture(renderer.pointer, texture.pointer, nil, nil)
+                try renderer
                     .present()
             }
         } else if texture == nil {
@@ -135,7 +136,8 @@ final class ReceiverGame: Game {
              // Keep presenting last frame if no new frame
             try renderer
                 .clear(color: .black)
-                .draw(texture: texture)
+            SDL_RenderTexture(renderer.pointer, texture.pointer, nil, nil)
+            try renderer
                 .present()
         }
     }

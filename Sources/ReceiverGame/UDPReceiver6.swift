@@ -1,7 +1,6 @@
 import Foundation
 import Network
 
-/// A POSIX-based IPv6 UDP receiver
 class UDPReceiver6 {
     private var socketFD: Int32 = -1
     private var isRunning = false
@@ -94,7 +93,6 @@ class UDPReceiver6 {
                 let error = errno
                 if error != EAGAIN && error != EINTR {
                     print("UDPReceiver6: recvfrom failed with error \(error)")
-                    // Stop on persistent error, or just continue
                 }
             }
         }
