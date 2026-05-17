@@ -6,7 +6,7 @@ final class ReceiverGame: Game {
     private enum CodingKeys: String, CodingKey {
         case options, message
     }
-    
+
     static var windowProperties: [WindowProperty] {
         [
             .windowTitle("Receiver Game Stream"),
@@ -15,117 +15,70 @@ final class ReceiverGame: Game {
             .resizable(true)
         ]
     }
-    
+
     @OptionGroup
     var options: GameOptions
-    
+
     @Argument
     var message: String = "Waiting for stream..."
-    
+
     private var renderer: (any Renderer)! = nil
     private var texture: (any Texture)! = nil
-    
+    private var currentTextureWidth: Int32 = 0
+    private var currentTextureHeight: Int32 = 0
+
     private let udpReceiver = UDPReceiver6()
     private var videoDecoder: VideoDecoder?
-    
-    // For passing frames from UDP thread to SDL thread
-    private let frameLock = NSLock()
-    private var latestFrameData: Data?
-    private var frameWidth: Int32 = 0
-    private var frameHeight: Int32 = 0
-    private var isNewFrameAvailable = false
 
     func onReady(window: any Window) throws(SDL_Error) {
         renderer = try window.createRenderer()
-        
+
         do {
             videoDecoder = try VideoDecoder(codecName: "hevc")
             print("VideoDecoder initialized for HEVC.")
+            udpReceiver.setDecoder(videoDecoder!)
         } catch {
             print("Failed to initialize video decoder: \(error)")
         }
-        
-        udpReceiver.onDataReceived = { [weak self] payload, header in
-            guard let self = self, let decoder = self.videoDecoder else { return }
-            do {
-                if let rgbaData = try decoder.decode(data: payload) {
-                    self.frameLock.lock()
-                    self.latestFrameData = rgbaData
-                    self.frameWidth = decoder.width
-                    self.frameHeight = decoder.height
-                    self.isNewFrameAvailable = true
-                    self.frameLock.unlock()
-                }
-            } catch {
-                 print("Decode error: \(error)")
-            }
-        }
-        
+
         do {
             try udpReceiver.start(port: 50000)
-            print("Listening on UDP port 50000...")
+            print("Listening on UDP port 50000 (Thread A receive + decode, Thread B render).")
         } catch {
             print("Failed to start UDP receiver: \(error)")
         }
     }
-    
+
+    // Thread B: the SDL main loop calls this at the display refresh rate,
+    // which is slightly larger than the source frame rate. Each tick we
+    // pull at most one frame off the FIFO and present it.
     func onUpdate(window: any Window) throws(SDL_Error) {
-        var frameDataToRender: Data?
-        var w: Int32 = 0
-        var h: Int32 = 0
-        
-        frameLock.lock()
-        if isNewFrameAvailable {
-            frameDataToRender = latestFrameData
-            w = frameWidth
-            h = frameHeight
-            isNewFrameAvailable = false
-        }
-        frameLock.unlock()
-        
-        if let data = frameDataToRender, w > 0, h > 0 {
-            var needsNewTexture = true
-            if let t = texture {
-                do {
-                    let size = try t.size(as: Int32.self)
-                    if size.x == w && size.y == h {
-                        needsNewTexture = false
-                    }
-                } catch {
-                    print("fallthrough to recreate")
-                }
-            }
-            
-            if needsNewTexture {
-                // Create streaming texture using C-API and wrap it in SDLObject
+        if let frame = udpReceiver.popFrame() {
+            let w = frame.width
+            let h = frame.height
+
+            if texture == nil || currentTextureWidth != w || currentTextureHeight != h {
                 if let ptr = SwiftSDL.SDL_CreateTexture(
                     renderer.pointer,
                     SDL_PIXELFORMAT_RGBA32,
                     SDL_TEXTUREACCESS_STREAMING,
-                    w,
-                    h
+                    w, h
                 ) {
                     texture = SDLObject(ptr, tag: .custom("videoTexture"), destroy: SDL_DestroyTexture)
+                    currentTextureWidth = w
+                    currentTextureHeight = h
                 }
             }
-            
-            // Update texture
+
             if let texture = texture {
-                data.withUnsafeBytes { ptr in
-                    if let baseAddress = ptr.baseAddress {
-                        let _ = SDL_UpdateTexture(
-                            texture.pointer,
-                            nil,
-                            baseAddress,
-                            w * 4 // RGBA = 4 bytes per pixel
-                        )
+                frame.pixels.withUnsafeBytes { ptr in
+                    if let base = ptr.baseAddress {
+                        _ = SDL_UpdateTexture(texture.pointer, nil, base, w * 4)
                     }
                 }
-                try renderer
-                    .clear(color: .black)
+                try renderer.clear(color: .black)
                 SDL_RenderTexture(renderer.pointer, texture.pointer, nil, nil)
-                try renderer
-                    .present()
+                try renderer.present()
             }
         } else if texture == nil {
             try renderer
@@ -133,18 +86,16 @@ final class ReceiverGame: Game {
                 .debug(text: message, position: [12, 12], scale: [2, 2])
                 .present()
         } else {
-             // Keep presenting last frame if no new frame
-            try renderer
-                .clear(color: .black)
+            // No fresh frame this tick — keep the last one on screen.
+            try renderer.clear(color: .black)
             SDL_RenderTexture(renderer.pointer, texture.pointer, nil, nil)
-            try renderer
-                .present()
+            try renderer.present()
         }
     }
-    
+
     func onEvent(window: any Window, _ event: SDL_Event) throws(SDL_Error) {
     }
-    
+
     func onShutdown(window: (any Window)?) throws(SDL_Error) {
         udpReceiver.stop()
         texture = nil
