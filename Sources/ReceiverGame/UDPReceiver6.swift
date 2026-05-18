@@ -60,6 +60,11 @@ class UDPReceiver6 {
     private var senderAddr: sockaddr_in6?
     private var hasSenderAddr = false
 
+    // ---- Most recent computed report (snapshot for the UI) ----
+    private let lastReportLock = NSLock()
+    private var lastReport: ReceiverReport?
+    private var lastReportSentAt: Date?
+
     private let reportIntervalSeconds: TimeInterval = 10.0
 
     init() {}
@@ -122,6 +127,15 @@ class UDPReceiver6 {
             close(socketFD)
             socketFD = -1
         }
+    }
+
+    /// Snapshot of the most recently produced receiver report (for the UI).
+    /// Returns nil until the first report has been produced.
+    func latestReport() -> (report: ReceiverReport, sentAt: Date)? {
+        lastReportLock.lock()
+        defer { lastReportLock.unlock() }
+        guard let r = lastReport, let t = lastReportSentAt else { return nil }
+        return (r, t)
     }
 
     /// Called by Thread B (SDL main thread).
@@ -212,6 +226,11 @@ class UDPReceiver6 {
     // MARK: - Report thread
 
     private func reportLoop() {
+        // Fire a first report quickly (1 s) so the UI gets something to show,
+        // then settle into the requested ~10 s cadence.
+        Thread.sleep(forTimeInterval: 1.0)
+        if !isRunning { return }
+        sendReceiverReport()
         while isRunning {
             Thread.sleep(forTimeInterval: reportIntervalSeconds)
             if !isRunning { break }
@@ -255,11 +274,17 @@ class UDPReceiver6 {
         print(String(format: "ReceiverReport: byteRate=%.1f B/s, loss=%.3f, fps=%.2f",
                      byteRate, lossRate, frameRate))
 
-        guard canSend, socketFD >= 0 else { return }
-
         var report = ReceiverReport(receivedByteRate: byteRate,
                                     packetLossRate: lossRate,
                                     frameRate: frameRate)
+
+        // Publish snapshot for the UI before attempting to send.
+        lastReportLock.lock()
+        lastReport = report
+        lastReportSentAt = now
+        lastReportLock.unlock()
+
+        guard canSend, socketFD >= 0 else { return }
 
         let sent = withUnsafePointer(to: &addr) { addrPtr -> ssize_t in
             addrPtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr -> ssize_t in
