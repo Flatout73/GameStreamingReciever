@@ -1,24 +1,6 @@
 import Foundation
 import Network
 
-struct RTHeader {
-    var time: Double
-    var packetnum: UInt
-}
-
-/// Wire-format report sent back to the sender.
-/// Layout (24 bytes, 8-byte alignment) matches C++ side.
-struct ReceiverReport {
-    var receivedByteRate: Double   // bytes/sec
-    var packetLossRate: Double     // 0..1
-    var frameRate: Double          // frames/sec
-}
-
-struct DecodedFrame {
-    let pixels: Data       // RGBA8
-    let width: Int32
-    let height: Int32
-}
 
 /// UDP receiver with a two-thread design:
 ///  - Thread A (`receiveLoop`): waits on the socket, decodes the frame and
@@ -60,7 +42,6 @@ class UDPReceiver6 {
     private var senderAddr: sockaddr_in6?
     private var hasSenderAddr = false
 
-    // ---- Most recent computed report (snapshot for the UI) ----
     private let lastReportLock = NSLock()
     private var lastReport: ReceiverReport?
     private var lastReportSentAt: Date?
