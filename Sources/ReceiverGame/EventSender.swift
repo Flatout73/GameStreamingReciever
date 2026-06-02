@@ -1,15 +1,16 @@
 import Foundation
 
 /// Sends input events captured from the user back to the server over IPv6 UDP.
-/// The server (game) binds this port, reconstructs a native SDL_Event and
-/// re-injects it with SDL_PushEvent so the streamed game reacts to our input.
 final class EventSender {
     private var socketFD: Int32 = -1
     private var destAddr = sockaddr_in6()
     private var hasDest = false
 
     init() {}
-    deinit { stop() }
+    
+    deinit {
+        stop()
+    }
 
     func start(host: String = "::1", port: UInt16 = 50001) {
         socketFD = socket(AF_INET6, SOCK_DGRAM, 0)
