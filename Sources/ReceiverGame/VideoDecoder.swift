@@ -33,7 +33,13 @@ class VideoDecoder {
         guard let codecCtx = codecCtx else {
             throw DecoderError.contextAllocationFailed
         }
-        
+
+        // Low latency: emit each frame as soon as it decodes, and avoid
+        // frame-threading (which delays output by ~thread_count frames to fill
+        // its pipeline). AV_CODEC_FLAG_LOW_DELAY == 1 << 19.
+        codecCtx.pointee.flags |= Int32(AV_CODEC_FLAG_LOW_DELAY)
+        codecCtx.pointee.thread_count = 1
+
         if avcodec_open2(codecCtx, codec, nil) < 0 {
             avcodec_free_context(&self.codecCtx)
             throw DecoderError.contextOpenFailed
