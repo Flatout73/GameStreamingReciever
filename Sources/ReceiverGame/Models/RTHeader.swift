@@ -9,5 +9,5 @@ import Foundation
 
 struct RTHeader {
     var time: Double
-    var packetnum: UInt
+    var packetnum: UInt64   // matches C++ uint64_t; pins the header at 16 bytes
 }

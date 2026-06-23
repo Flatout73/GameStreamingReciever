@@ -24,6 +24,9 @@ let package = Package(
             dependencies: [
                 "SwiftSDL",
                 "CFFmpeg"
+            ],
+            resources: [
+                .process("Resources")
             ]
         )
     ],

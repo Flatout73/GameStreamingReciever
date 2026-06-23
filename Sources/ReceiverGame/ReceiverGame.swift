@@ -30,9 +30,15 @@ final class ReceiverGame: Game {
     private let udpReceiver = UDPReceiver6()
     private var videoDecoder: VideoDecoder?
     private let eventSender = EventSender()
+    private let soundPlayer = SoundPlayer()
+    private let soundReceiver = SoundCommandReceiver()
 
     func onReady(window: any Window) throws(SDL_Error) {
         renderer = try window.createRenderer()
+
+        // All audio (music + SFX) is driven by the server: it streams sound
+        // commands which we render locally.
+        soundReceiver.start(player: soundPlayer, port: 50002)
 
         // Forward user input back to the server (it injects via SDL_PushEvent).
         eventSender.start(host: "::1", port: 50001)
@@ -211,6 +217,8 @@ final class ReceiverGame: Game {
     }
 
     func onShutdown(window: (any Window)?) throws(SDL_Error) {
+        soundReceiver.stop()
+        soundPlayer.stopAll()
         udpReceiver.stop()
         eventSender.stop()
         texture = nil
