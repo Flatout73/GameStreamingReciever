@@ -29,9 +29,13 @@ final class ReceiverGame: Game {
 
     private let udpReceiver = UDPReceiver6()
     private var videoDecoder: VideoDecoder?
+    private let eventSender = EventSender()
 
     func onReady(window: any Window) throws(SDL_Error) {
         renderer = try window.createRenderer()
+
+        // Forward user input back to the server (it injects via SDL_PushEvent).
+        eventSender.start(host: "::1", port: 50001)
 
         do {
             videoDecoder = try VideoDecoder(codecName: "hevc")
@@ -167,10 +171,48 @@ final class ReceiverGame: Game {
     }
 
     func onEvent(window: any Window, _ event: SDL_Event) throws(SDL_Error) {
+        var net = NetInputEvent()
+
+        switch event.type {
+        case SDL_EVENT_KEY_DOWN.rawValue, SDL_EVENT_KEY_UP.rawValue:
+            net.kind = (event.type == SDL_EVENT_KEY_DOWN.rawValue
+                        ? NetInputEvent.Kind.keyDown
+                        : NetInputEvent.Kind.keyUp).rawValue
+            net.scancode = event.key.scancode.rawValue
+            net.keycode = UInt32(event.key.key)
+            net.mod = UInt32(event.key.mod)
+            net.repeatFlag = event.key.`repeat` ? 1 : 0
+
+        case SDL_EVENT_MOUSE_MOTION.rawValue:
+            net.kind = NetInputEvent.Kind.mouseMotion.rawValue
+            net.x = event.motion.x
+            net.y = event.motion.y
+            net.xrel = event.motion.xrel
+            net.yrel = event.motion.yrel
+
+        case SDL_EVENT_MOUSE_BUTTON_DOWN.rawValue, SDL_EVENT_MOUSE_BUTTON_UP.rawValue:
+            net.kind = (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN.rawValue
+                        ? NetInputEvent.Kind.mouseButtonDown
+                        : NetInputEvent.Kind.mouseButtonUp).rawValue
+            net.button = UInt32(event.button.button)
+            net.x = event.button.x
+            net.y = event.button.y
+
+        case SDL_EVENT_MOUSE_WHEEL.rawValue:
+            net.kind = NetInputEvent.Kind.mouseWheel.rawValue
+            net.wheelX = event.wheel.x
+            net.wheelY = event.wheel.y
+
+        default:
+            return
+        }
+
+        eventSender.send(net)
     }
 
     func onShutdown(window: (any Window)?) throws(SDL_Error) {
         udpReceiver.stop()
+        eventSender.stop()
         texture = nil
         renderer = nil
     }
