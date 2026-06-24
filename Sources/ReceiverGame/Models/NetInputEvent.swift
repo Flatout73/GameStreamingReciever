@@ -2,10 +2,6 @@
 //  NetInputEvent.swift
 //  ReceiverGame
 //
-//  Wire format for input events forwarded from this client back to the server.
-//  Layout (48 bytes, 12 x 4-byte fields, no padding) matches the C++
-//  `netinput::NetInputEvent` struct in game/net_input_event.h byte-for-byte.
-//
 
 import Foundation
 

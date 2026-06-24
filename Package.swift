@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "ReceiverGame",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v15)
     ],
     dependencies: [
         .package(url: "https://github.com/KevinVitale/SwiftSDL.git", from: "0.2.0-alpha.20")

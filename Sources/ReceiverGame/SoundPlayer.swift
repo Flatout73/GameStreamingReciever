@@ -1,13 +1,6 @@
 import AVFoundation
 import Foundation
 
-/// Renders all game audio on the client. Nothing plays on the server; sounds
-/// are triggered by `SoundCommand`s streamed from it (see SoundCommandReceiver).
-///
-/// All AVAudioPlayer access is serialized on a private queue, so `handle(_:)`
-/// is safe to call from the UDP receive thread. Background music uses one
-/// dedicated looping player; sound effects spawn short-lived players so rapid
-/// hits (e.g. eating fruit) can overlap.
 final class SoundPlayer {
     private let queue = DispatchQueue(label: "ReceiverGame.SoundPlayer")
 

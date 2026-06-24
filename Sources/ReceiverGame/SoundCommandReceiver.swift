@@ -22,7 +22,9 @@ final class SoundCommandReceiver {
     private var highSeq: UInt32 = 0
 
     init() {}
-    deinit { stop() }
+    deinit {
+        stop()
+    }
 
     func start(player: SoundPlayer, port: UInt16 = 50002) {
         self.player = player
@@ -63,10 +65,6 @@ final class SoundCommandReceiver {
 
     func stop() {
         running.withLock { $0 = false }
-        // Capture and clear the fd, then shutdown() to unblock the parked
-        // recvfrom (close() alone does NOT reliably wake a blocked recvfrom on
-        // Darwin). The receive thread captured its own fd copy, so it never
-        // touches a recycled descriptor.
         let fd = socketFD
         socketFD = -1
         if fd >= 0 {
@@ -85,8 +83,9 @@ final class SoundCommandReceiver {
         while running.withLock({ $0 }) {
             let n = recvfrom(fd, &buffer, bufferSize, 0, nil, nil)
             if n <= 0 {
-                // stop() shut the socket down -> recvfrom returns; bail cleanly.
-                if !running.withLock({ $0 }) { break }
+                if !running.withLock({ $0 }) {
+                    break
+                }
                 if n < 0 {
                     let e = errno
                     if e != EAGAIN && e != EINTR {
